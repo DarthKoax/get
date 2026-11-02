@@ -1,0 +1,42 @@
+{
+  "default_resolver": "google",
+  "shortcuts": [
+    {
+      "name": "gh",
+      "url": "https://github.com",
+      "description": "GitHub"
+    },
+    {
+      "name": "docs",
+      "url": "https://docs.example.com",
+      "description": "Internal documentation"
+    },
+    {
+      "name": "jira",
+      "url": "https://jira.example.com/browse",
+      "description": "Jira issue tracker"
+    },
+    {
+      "name": "google",
+      "url": "https://www.google.com",
+      "search_url": "https://www.google.com/search?q=",
+      "description": "Google Search"
+    },
+    {
+      "name": "fred",
+      "url": "https://www.fred.com",
+      "search_url": "https://www.fred.com/search?q=",
+      "description": "Fred Search"
+    },
+    {
+      "name": "chrome-settings",
+      "url": "chrome://settings",
+      "description": "Chrome Settings"
+    },
+    {
+      "name": "vscode",
+      "url": "vscode://file/",
+      "description": "VS Code File Protocol"
+    }
+  ]
+}

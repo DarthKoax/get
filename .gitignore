@@ -1,0 +1,9 @@
+factory/jobs/
+factory/board.json
+factory/.board.lock
+web/main.wasm
+web/wasm_exec.js
+bin/
+data/*.db
+factory/worktrees/
+server

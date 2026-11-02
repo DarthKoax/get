@@ -1,0 +1,181 @@
+name: Release and Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "release"
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump_version.outputs.new_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          # Read current version or start at 0.0.0
+          if [ -f VERSION ]; then
+            CURRENT_VERSION=$(cat VERSION)
+          else
+            CURRENT_VERSION="0.0.0"
+          fi
+          
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Parse version components
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+          
+          # Increment patch version
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          
+          echo "New version: $NEW_VERSION"
+          
+          # Write new version
+          echo $NEW_VERSION > VERSION
+          
+          # Commit and push version bump
+          git add VERSION
+          git commit -m "chore: bump version to $NEW_VERSION"
+          git push
+          
+          # Set output
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.0'
+
+      - name: Build static version
+        run: |
+          make build-static
+
+      - name: Prepare deployment artifacts
+        run: |
+          mkdir -p deploy
+          cp web/main.wasm deploy/
+          cp web/wasm_exec.js deploy/
+          cp web/index.html deploy/
+          cp web/style.css deploy/
+          cp web/app.js deploy/
+          cp web/api.js deploy/ 2>/dev/null || true
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-build
+          path: deploy/
+          retention-days: 1
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: static-build
+          path: release-artifacts/
+
+      - name: Create release archive
+        run: |
+          cd release-artifacts
+          zip -r ../get-static-${{ needs.version.outputs.new_version }}.zip .
+          cd ..
+          tar -czvf get-static-${{ needs.version.outputs.new_version }}.tar.gz -C release-artifacts .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.new_version }}
+          name: Release v${{ needs.version.outputs.new_version }}
+          body: |
+            ## GET URL Shortcuts v${{ needs.version.outputs.new_version }}
+            
+            ### Static Build
+            Deploy the static version to any web server or GitHub Pages.
+            
+            #### Contents
+            - `main.wasm` - WebAssembly binary with embedded SQLite database
+            - `wasm_exec.js` - Go WASM runtime
+            - `index.html` - Main HTML file
+            - `style.css` - Pixel art theme styles
+            - `app.js` - Application logic
+            - `api.js` - API client (for server mode)
+            
+            #### Quick Start
+            ```bash
+            # Serve locally
+            python3 -m http.server 8080
+            # Open http://localhost:8080
+            ```
+            
+            #### Docker
+            ```bash
+            docker run -p 8080:80 get:static
+            ```
+          files: |
+            get-static-${{ needs.version.outputs.new_version }}.zip
+            get-static-${{ needs.version.outputs.new_version }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: static-build
+          path: ./
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
