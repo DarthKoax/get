@@ -37,6 +37,11 @@
       "name": "vscode",
       "url": "vscode://file/",
       "description": "VS Code File Protocol"
+    },
+    {
+      "name": "get",
+      "url": "https://darthkoax.github.io/get/",
+      "description": "GET the GET homepage"
     }
   ]
 }
